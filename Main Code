@@ -1,0 +1,71 @@
+
+
+module fifo #(parameter depth = 16, parameter data_width = 8, parameter ptr_width = 5) (
+    input wire clk,
+    input wire rst,
+    input wire write_en,
+    input wire read_en,
+    input wire [data_width-1:0] data_in,
+    output wire [data_width-1:0] data_out,
+    output wire empty,
+    output wire full
+);
+
+// Memory and pointer declarations
+reg [data_width-1:0] memory[0:depth-1];
+reg [ptr_width-1:0] write_ptr;
+reg [ptr_width-1:0] read_ptr;
+reg empty_reg;
+reg full_reg;
+integer i;
+
+// Write pointer and memory write operation
+always @(posedge clk or posedge rst) begin
+    if (rst) begin
+        write_ptr <= 0;
+    end else if (write_en && !full_reg) begin
+        memory[write_ptr] <= data_in;  // Write data to memory
+        write_ptr <= (write_ptr + 1) % depth;  // Handle wraparound with modulo
+    end
+end
+
+// Read pointer operation
+always @(posedge clk or posedge rst) begin
+    if (rst) begin
+        read_ptr <= 0;
+    end else if (read_en && !empty_reg) begin
+        read_ptr <= (read_ptr + 1) % depth;  // Handle wraparound with modulo
+    end
+end
+
+// Full and Empty flag handling
+always @(posedge clk or posedge rst) begin
+    if (rst) begin
+        empty_reg <= 1;
+        full_reg <= 0;
+    end else begin
+        // Full when the next write pointer position equals the read pointer
+        full_reg <= ((write_ptr + 1) % depth == read_ptr);
+
+        // Empty when the write pointer equals the read pointer
+        empty_reg <= (write_ptr == read_ptr);
+    end
+end
+
+// Memory initialization at reset
+always @(posedge clk or posedge rst) begin
+    if (rst) begin
+        for (i = 0; i < depth; i = i + 1) begin
+            memory[i] <= {data_width{1'b0}};  // Initialize memory with zeroes
+        end
+    end
+end
+
+// Continuous data output when FIFO is not empty
+assign data_out = (!empty_reg) ? memory[read_ptr] : {data_width{1'bz}};
+
+// Status signals
+assign empty = empty_reg;
+assign full = full_reg;
+
+endmodule
